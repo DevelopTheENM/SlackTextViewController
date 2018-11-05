@@ -149,10 +149,10 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 {
     [self slk_registerNotifications];
     
-    self.bounces = YES;
-    self.inverted = YES;
+    self.bounces = NO;
+    self.inverted = NO;
     self.shakeToClearEnabled = NO;
-    self.keyboardPanningEnabled = YES;
+    self.keyboardPanningEnabled = NO;
     self.shouldClearTextAtRightButtonPress = YES;
     self.shouldScrollToBottomAfterKeyboardShows = NO;
     
@@ -237,13 +237,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     [super viewDidLayoutSubviews];
 }
 
-- (void)viewSafeAreaInsetsDidChange
-{
-    [super viewSafeAreaInsetsDidChange];
-    
-    [self slk_updateViewConstraints];
-}
-
 
 #pragma mark - Getters
 
@@ -266,8 +259,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
         _tableView.dataSource = self;
         _tableView.delegate = self;
         _tableView.clipsToBounds = NO;
-
-        [self slk_updateInsetAdjustmentBehavior];
     }
     return _tableView;
 }
@@ -319,6 +310,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
         _textInputbar.translatesAutoresizingMaskIntoConstraints = NO;
         
         [_textInputbar.leftButton addTarget:self action:@selector(didPressLeftButton:) forControlEvents:UIControlEventTouchUpInside];
+        [_textInputbar.middleButton addTarget:self action:@selector(didPressMiddleButton:) forControlEvents:UIControlEventTouchUpInside];
         [_textInputbar.rightButton addTarget:self action:@selector(didPressRightButton:) forControlEvents:UIControlEventTouchUpInside];
         [_textInputbar.editorLeftButton addTarget:self action:@selector(didCancelTextEditing:) forControlEvents:UIControlEventTouchUpInside];
         [_textInputbar.editorRightButton addTarget:self action:@selector(didCommitTextEditing:) forControlEvents:UIControlEventTouchUpInside];
@@ -375,6 +367,11 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     return _textInputbar.leftButton;
 }
 
+- (UIButton *)middleButton
+{
+    return _textInputbar.middleButton;
+}
+
 - (UIButton *)rightButton
 {
     return _textInputbar.rightButton;
@@ -424,7 +421,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 
 - (CGFloat)slk_appropriateBottomMargin
 {
-    // A bottom margin is required if the view is extended out of it bounds
+    // A bottom margin is required only if the view is extended out of it bounds
     if ((self.edgesForExtendedLayout & UIRectEdgeBottom) > 0) {
         
         UITabBar *tabBar = self.tabBarController.tabBar;
@@ -432,13 +429,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
         // Considers the bottom tab bar, unless it will be hidden
         if (tabBar && !tabBar.hidden && !self.hidesBottomBarWhenPushed) {
             return CGRectGetHeight(tabBar.frame);
-        }
-    }
-    
-    // A bottom margin is required for iPhone X
-    if (@available(iOS 11.0, *)) {
-        if (!self.textInputbar.isHidden) {
-            return self.view.safeAreaInsets.bottom;
         }
     }
     
@@ -576,7 +566,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     }
     
     _inverted = inverted;
-    [self slk_updateInsetAdjustmentBehavior];
     
     self.scrollViewProxy.transform = inverted ? CGAffineTransformMake(1, 0, 0, -1, 0, 0) : CGAffineTransformIdentity;
 }
@@ -586,18 +575,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     _bounces = bounces;
     _textInputbar.bounces = bounces;
 }
-
-- (void)slk_updateInsetAdjustmentBehavior
-    {
-        // Deactivate automatic scrollView adjustment for inverted table view
-        if (@available(iOS 11.0, *)) {
-            if (self.isInverted) {
-                _tableView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-            } else {
-                _tableView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentAutomatic;
-            }
-        }
-    }
 
 - (BOOL)slk_updateKeyboardStatus:(SLKKeyboardStatus)status
 {
@@ -693,8 +670,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     
     if (inputbarHeight != self.textInputbarHC.constant)
     {
-        CGFloat inputBarHeightDelta = inputbarHeight - self.textInputbarHC.constant;
-        CGPoint newOffset = CGPointMake(0, self.scrollViewProxy.contentOffset.y + inputBarHeightDelta);
         self.textInputbarHC.constant = inputbarHeight;
         self.scrollViewHC.constant = [self slk_appropriateScrollViewHeight];
         
@@ -707,9 +682,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
             [self.view slk_animateLayoutIfNeededWithBounce:bounces
                                                    options:UIViewAnimationOptionCurveEaseInOut|UIViewAnimationOptionLayoutSubviews|UIViewAnimationOptionBeginFromCurrentState
                                                 animations:^{
-                                                    if (!self.isInverted) {
-                                                        self.scrollViewProxy.contentOffset = newOffset;
-                                                    }
                                                     if (weakSelf.textInputbar.isEditing) {
                                                         [weakSelf.textView slk_scrollToCaretPositonAnimated:NO];
                                                     }
@@ -737,7 +709,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     }
     
     if (self.textView.selectedRange.length > 0) {
-        if (self.isAutoCompleting && [self shouldProcessTextForAutoCompletion]) {
+        if (self.isAutoCompleting && [self shouldProcessTextForAutoCompletion:self.textView.text]) {
             [self cancelAutoCompletion];
         }
         return;
@@ -759,6 +731,11 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 }
 
 - (void)didPressLeftButton:(id)sender
+{
+    // No implementation here. Meant to be overriden in subclass.
+}
+
+- (void)didPressMiddleButton:(id)sender
 {
     // No implementation here. Meant to be overriden in subclass.
 }
@@ -906,16 +883,12 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     }
     
     _textInputbar.hidden = hidden;
-
-    if (@available(iOS 11.0, *)) {
-        [self viewSafeAreaInsetsDidChange];
-    }
     
     __weak typeof(self) weakSelf = self;
-
-    void (^animations)(void) = ^void(){
+    
+    void (^animations)() = ^void(){
         
-        weakSelf.textInputbarHC.constant = hidden ? 0.0 : weakSelf.textInputbar.appropriateHeight;
+        weakSelf.textInputbarHC.constant = hidden ? 0 : weakSelf.textInputbar.appropriateHeight;
         
         [weakSelf.view layoutIfNeeded];
     };
@@ -978,7 +951,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     // Checking the keyboard height constant helps to disable the view constraints update on iPad when the keyboard is undocked.
     // Checking the keyboard status allows to keep the inputAccessoryView valid when still reacing the bottom of the screen.
     CGFloat bottomMargin = [self slk_appropriateBottomMargin];
-    
     if (![self.textView isFirstResponder] || (self.keyboardHC.constant == bottomMargin && self.keyboardStatus == SLKKeyboardStatusDidHide)) {
 #if SLKBottomPanningEnabled
         if ([gesture.view isEqual:self.scrollViewProxy]) {
@@ -1209,17 +1181,13 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
         return;
     }
     
-    if (enable == NO && ![self shouldDisableTypingSuggestionForAutoCompletion]) {
-        return;
-    }
-    
+    // During text autocompletion, the iOS 8 QuickType bar is hidden and auto-correction and spell checking are disabled.
     [self.textView setTypingSuggestionEnabled:enable];
 }
 
 - (void)slk_dismissTextInputbarIfNeeded
 {
     CGFloat bottomMargin = [self slk_appropriateBottomMargin];
-    
     if (self.keyboardHC.constant == bottomMargin) {
         return;
     }
@@ -1347,7 +1315,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     }
    
     CGFloat bottomMargin = [self slk_appropriateBottomMargin];
-    
     if ([self ignoreTextInputbarAdjustment] || ([self.textView isFirstResponder] && self.keyboardHC.constant == bottomMargin)) {
         return;
     }
@@ -1386,7 +1353,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     
     // Skips if it's not the expected textView and shouldn't force adjustment of the text input bar.
     // This will also dismiss the text input bar if it's visible, and exit auto-completion mode if enabled.
-    if (currentResponder && ![currentResponder isEqual:self.textView] && ![self forceTextInputbarAdjustmentForResponder:currentResponder]) {
+    if (![currentResponder isEqual:self.textView] && ![self forceTextInputbarAdjustmentForResponder:currentResponder]) {
         [self slk_dismissTextInputbarIfNeeded];
         return;
     }
@@ -1419,22 +1386,20 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
         [self slk_hideAutoCompletionViewIfNeeded];
     }
     
-    UIScrollView *scrollView = self.scrollViewProxy;
-    
     NSInteger curve = [notification.userInfo[UIKeyboardAnimationCurveUserInfoKey] integerValue];
     NSTimeInterval duration = [notification.userInfo[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
     
     CGRect beginFrame = [notification.userInfo[UIKeyboardFrameBeginUserInfoKey] CGRectValue];
     CGRect endFrame = [notification.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
     
-    void (^animations)(void) = ^void() {
+    void (^animations)() = ^void() {
         // Scrolls to bottom only if the keyboard is about to show.
         if (self.shouldScrollToBottomAfterKeyboardShows && self.keyboardStatus == SLKKeyboardStatusWillShow) {
             if (self.isInverted) {
-                [scrollView slk_scrollToTopAnimated:YES];
+                [self.scrollViewProxy slk_scrollToTopAnimated:YES];
             }
             else {
-                [scrollView slk_scrollToBottomAnimated:YES];
+                [self.scrollViewProxy slk_scrollToBottomAnimated:YES];
             }
         }
     };
@@ -1444,20 +1409,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     // Second condition: check if the height of the keyboard changed.
     if (!CGRectEqualToRect(beginFrame, endFrame) || fabs(previousKeyboardHeight - self.keyboardHC.constant) > 0.0)
     {
-        // Content Offset correction if not inverted and not auto-completing.
-        if (!self.isInverted && !self.isAutoCompleting) {
-            
-            CGFloat scrollViewHeight = self.scrollViewHC.constant;
-            CGFloat keyboardHeight = self.keyboardHC.constant;
-            CGSize contentSize = scrollView.contentSize;
-            CGPoint contentOffset = scrollView.contentOffset;
-            
-            CGFloat newOffset = MIN(contentSize.height - scrollViewHeight,
-                                    contentOffset.y + keyboardHeight - previousKeyboardHeight);
-            
-            scrollView.contentOffset = CGPointMake(contentOffset.x, newOffset);
-        }
-        
         // Only for this animation, we set bo to bounce since we want to give the impression that the text input is glued to the keyboard.
         [self.view slk_animateLayoutIfNeededWithDuration:duration
                                                   bounce:NO
@@ -1656,16 +1607,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     _registeredPrefixes = [NSSet setWithSet:set];
 }
 
-- (BOOL)shouldProcessTextForAutoCompletion
-{
-    if (!_registeredPrefixes || _registeredPrefixes.count == 0) {
-        return NO;
-    }
-    
-    return YES;
-}
-
-- (BOOL)shouldDisableTypingSuggestionForAutoCompletion
+- (BOOL)shouldProcessTextForAutoCompletion:(NSString *)text
 {
     if (!_registeredPrefixes || _registeredPrefixes.count == 0) {
         return NO;
@@ -1682,9 +1624,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 - (void)showAutoCompletionView:(BOOL)show
 {
     // Reloads the tableview before showing/hiding
-    if (show) {
-        [_autoCompletionView reloadData];
-    }
+    [_autoCompletionView reloadData];
     
     self.autoCompleting = show;
     
@@ -1770,7 +1710,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 {
     NSString *text = self.textView.text;
     
-    if ((!self.isAutoCompleting && text.length == 0) || self.isTransitioning || ![self shouldProcessTextForAutoCompletion]) {
+    if ((!self.isAutoCompleting && text.length == 0) || self.isTransitioning || ![self shouldProcessTextForAutoCompletion:text]) {
         return;
     }
     
@@ -1989,6 +1929,11 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 
 - (BOOL)textView:(SLKTextView *)textView shouldChangeTextInRange:(NSRange)range replacementText:(NSString *)text
 {
+    if ([text isEqualToString:@"\n"]) {
+        [self didPressRightButton:nil];
+        return NO;
+    }
+    
     if (![textView isKindOfClass:[SLKTextView class]]) {
         return YES;
     }
@@ -2255,7 +2200,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     NSDictionary *views = @{@"scrollView": self.scrollViewProxy,
                             @"autoCompletionView": self.autoCompletionView,
                             @"typingIndicatorView": self.typingIndicatorProxyView,
-                            @"textInputbar": self.textInputbar
+                            @"textInputbar": self.textInputbar,
                             };
     
     [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[scrollView(0@750)][typingIndicatorView(0)]-0@999-[textInputbar(0)]|" options:0 metrics:nil views:views]];
@@ -2276,7 +2221,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 
 - (void)slk_updateViewConstraints
 {
-    self.textInputbarHC.constant = self.textInputbar.hidden ? 0.0 : self.textInputbar.minimumInputbarHeight;
+    self.textInputbarHC.constant = self.textInputbar.minimumInputbarHeight;
     self.scrollViewHC.constant = [self slk_appropriateScrollViewHeight];
     self.keyboardHC.constant = [self slk_appropriateKeyboardHeightFromRect:CGRectNull];
     
@@ -2441,8 +2386,38 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 - (void)dealloc
 {
     [self slk_unregisterNotifications];
+
+    _tableView.delegate = nil;
+    _tableView.dataSource = nil;
+    _tableView = nil;
+    
+    _collectionView.delegate = nil;
+    _collectionView.dataSource = nil;
+    _collectionView = nil;
+    
+    _scrollView = nil;
+    
+    _autoCompletionView.delegate = nil;
+    _autoCompletionView.dataSource = nil;
+    _autoCompletionView = nil;
+    
+    _textInputbar = nil;
+    _textViewClass = nil;
     
     [_typingIndicatorProxyView removeObserver:self forKeyPath:@"visible"];
+    _typingIndicatorProxyView = nil;
+    _typingIndicatorViewClass = nil;
+    
+    _registeredPrefixes = nil;
+    _singleTapGesture.delegate = nil;
+    _singleTapGesture = nil;
+    _verticalPanGesture.delegate = nil;
+    _verticalPanGesture = nil;
+    _scrollViewHC = nil;
+    _textInputbarHC = nil;
+    _typingIndicatorViewHC = nil;
+    _autoCompletionViewHC = nil;
+    _keyboardHC = nil;
 }
 
 @end
