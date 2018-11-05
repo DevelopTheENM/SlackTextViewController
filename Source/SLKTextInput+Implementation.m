@@ -25,8 +25,8 @@
         return;
     }
     
-    NSAssert([prefixes isKindOfClass:[NSSet class]], @"You must provide a set containing String prefixes.");
-    NSAssert(completion != nil, @"You must provide a non-nil completion block.");
+//    NSAssert([prefixes isKindOfClass:[NSSet class]], @"You must provide a set containing String prefixes.");
+//    NSAssert(completion != nil, @"You must provide a non-nil completion block.");
     
     // Skip when there is no prefixes to look for.
     if (prefixes.count == 0) {
